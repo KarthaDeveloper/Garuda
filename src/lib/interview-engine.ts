@@ -116,6 +116,12 @@ const hasAction = (text: string) =>
     text,
   );
 
+export const MAX_ADAPTIVE_FOLLOW_UPS = 2;
+
+export function canAskAdaptiveFollowUp(answers: InterviewAnswer[]) {
+  return answers.filter((answer) => answer.question.isFollowUp).length < MAX_ADAPTIVE_FOLLOW_UPS;
+}
+
 export function createQuestionSet(profile: CandidateProfile, role: InterviewRole): Question[] {
   const questions = ROLE_QUESTIONS[role].map((question, index) => ({
     ...question,
@@ -142,7 +148,7 @@ export function createAdaptiveFollowUp(
   if (words.length < 25) {
     return {
       id: `${current.id}-follow-${sequence}`,
-      text: "Let’s make that concrete. Can you walk me through one specific situation, your personal actions, and the result?",
+      text: `Let’s make your ${current.competency.toLowerCase()} example concrete. What was the situation, what did you personally do, and what changed?`,
       competency: current.competency,
       keywords: current.keywords,
       isFollowUp: true,
@@ -152,7 +158,7 @@ export function createAdaptiveFollowUp(
   if (!hasExample(answer) || !hasAction(answer)) {
     return {
       id: `${current.id}-follow-${sequence}`,
-      text: "What did you personally do—not just the team—and what constraint shaped your decision?",
+      text: `Staying with ${current.competency.toLowerCase()}, what did you personally do—not just the team—and which constraint shaped that decision?`,
       competency: current.competency,
       keywords: current.keywords,
       isFollowUp: true,
@@ -162,7 +168,7 @@ export function createAdaptiveFollowUp(
   if (!hasNumber(answer)) {
     return {
       id: `${current.id}-follow-${sequence}`,
-      text: "How did you measure whether that worked? Give me the clearest before-and-after signal you had.",
+      text: `For that ${current.competency.toLowerCase()} decision, how did you measure whether it worked? Give me the clearest before-and-after signal.`,
       competency: current.competency,
       keywords: current.keywords,
       isFollowUp: true,
