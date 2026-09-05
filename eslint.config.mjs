@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "public/pdf.worker.min.mjs",
     "agent-tools/**",
+    ".vercel/**",
   ]),
 ]);
 
