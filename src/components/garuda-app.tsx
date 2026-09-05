@@ -16,12 +16,15 @@ import {
   FileText,
   Gauge,
   GraduationCap,
+  History,
   Laptop2,
   LoaderCircle,
   LockKeyhole,
   Mic,
   RotateCcw,
   Sparkles,
+  TrendingUp,
+  Trash2,
   UploadCloud,
   Volume2,
   WandSparkles,
@@ -42,16 +45,23 @@ import {
   ROLE_META,
 } from "@/lib/interview-engine";
 import { loadSampleProfile, parseResume } from "@/lib/resume-parser";
+import {
+  clearSessionHistory,
+  createSessionSummary,
+  readSessionHistory,
+  saveSessionSummary,
+} from "@/lib/session-history";
 import type {
   CandidateProfile,
   InterviewAnswer,
   InterviewReport,
   InterviewRole,
+  InterviewSession,
   Question,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Screen = "home" | "setup" | "interview" | "report";
+type Screen = "home" | "setup" | "interview" | "report" | "history";
 type ModelMode = "checking" | "on-device" | "fallback";
 
 const ROLES = Object.keys(ROLE_META) as InterviewRole[];
@@ -109,7 +119,15 @@ function AppHeader({
   );
 }
 
-function HomeScreen({ onStart }: { onStart: () => void }) {
+function HomeScreen({
+  onStart,
+  onHistory,
+  sessionCount,
+}: {
+  onStart: () => void;
+  onHistory: () => void;
+  sessionCount: number;
+}) {
   return (
     <main className="paper-grid min-h-svh">
       <AppHeader />
@@ -131,6 +149,16 @@ function HomeScreen({ onStart }: { onStart: () => void }) {
             <Button size="lg" className="h-12 px-6 text-base" onClick={onStart}>
               Start a practice interview
               <ArrowRight />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 px-6 text-base"
+              onClick={onHistory}
+            >
+              <History />
+              Progress
+              {sessionCount > 0 && <Badge variant="secondary">{sessionCount}</Badge>}
             </Button>
             <div className="flex items-center justify-center gap-2 px-3 text-sm text-muted-foreground">
               <Clock3 className="size-4" />
@@ -463,30 +491,37 @@ function InterviewScreen({
   async function continueInterview() {
     if (!submitted) return;
     setIsPreparing(true);
-    const allAnswers = [...answers];
-    const baseAnswers = allAnswers.filter((answer) => !answer.question.isFollowUp);
-    const followUpsForCurrent = allAnswers.filter((answer) =>
-      answer.question.id.startsWith(question.id.split("-follow-")[0] + "-follow-"),
-    ).length;
-    const fallback =
-      !question.isFollowUp && followUpsForCurrent < 1
-        ? createAdaptiveFollowUp(submitted.transcript, question, allAnswers.length)
-        : null;
-    if (fallback) {
-      const enhanced = await enhanceFollowUpLocally(fallback, submitted.transcript, role);
-      setModelMode(enhanced.model);
-      resetFor(enhanced.question);
+    try {
+      const submittedIsRecorded = answers.some(
+        (answer) =>
+          answer.question.id === submitted.question.id &&
+          answer.transcript === submitted.transcript,
+      );
+      const allAnswers = submittedIsRecorded ? answers : [...answers, submitted];
+      const baseAnswers = allAnswers.filter((answer) => !answer.question.isFollowUp);
+      const followUpsForCurrent = allAnswers.filter((answer) =>
+        answer.question.id.startsWith(question.id.split("-follow-")[0] + "-follow-"),
+      ).length;
+      const fallback =
+        !question.isFollowUp && followUpsForCurrent < 1
+          ? createAdaptiveFollowUp(submitted.transcript, question, allAnswers.length)
+          : null;
+      if (fallback) {
+        const enhanced = await enhanceFollowUpLocally(fallback, submitted.transcript, role);
+        setModelMode(enhanced.model);
+        resetFor(enhanced.question);
+        return;
+      }
+      const next = nextBaseQuestion(questions, baseAnswers);
+      if (!next || baseAnswers.length >= questions.length) {
+        onFinish(allAnswers);
+        return;
+      }
+      if (modelMode === "checking") setModelMode("fallback");
+      resetFor(next);
+    } finally {
       setIsPreparing(false);
-      return;
     }
-    const next = nextBaseQuestion(questions, baseAnswers);
-    if (!next || baseAnswers.length >= questions.length) {
-      onFinish(allAnswers);
-      return;
-    }
-    if (modelMode === "checking") setModelMode("fallback");
-    resetFor(next);
-    setIsPreparing(false);
   }
 
   const coreAnswered = answers.filter((answer) => !answer.question.isFollowUp).length;
@@ -684,6 +719,200 @@ const DIMENSION_LABELS: Record<keyof InterviewReport["dimensions"], string> = {
   communication: "Communication",
   competency: "Role depth",
 };
+
+function HistoryScreen({
+  sessions,
+  onBack,
+  onStart,
+  onClear,
+}: {
+  sessions: InterviewSession[];
+  onBack: () => void;
+  onStart: () => void;
+  onClear: () => void;
+}) {
+  const latest = sessions[0];
+  const previous = sessions[1];
+  const overallDelta = latest && previous ? latest.overall - previous.overall : null;
+  const trend = sessions.slice(0, 8).reverse();
+
+  return (
+    <main className="min-h-svh">
+      <AppHeader step="Your progress" onBack={onBack} />
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">
+              Practice history
+            </p>
+            <h1 className="mt-2 font-heading text-3xl font-semibold sm:text-4xl">
+              See the signal getting stronger.
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Session summaries stay in this browser. Resumes and transcripts are never saved.
+            </p>
+          </div>
+          <Button onClick={onStart}>
+            Practice again <ArrowRight />
+          </Button>
+        </div>
+
+        {!latest ? (
+          <Card className="mt-8 border-dashed py-0">
+            <CardContent className="flex min-h-72 flex-col items-center justify-center p-8 text-center">
+              <div className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <TrendingUp />
+              </div>
+              <h2 className="mt-4 font-heading text-2xl font-semibold">Your first baseline starts here.</h2>
+              <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                Complete an interview and Garuda will chart your overall score and coaching
+                dimensions across future sessions.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="mt-8 grid gap-5 md:grid-cols-[260px_1fr]">
+              <Card className="bg-[#28231f] py-0 text-[#fff9ef]">
+                <CardContent className="p-6">
+                  <p className="text-xs font-semibold tracking-wider text-[#d7c9ba] uppercase">
+                    Latest score
+                  </p>
+                  <div className="mt-3 flex items-end gap-3">
+                    <p className="font-heading text-6xl font-semibold">{latest.overall}</p>
+                    {overallDelta !== null && (
+                      <Badge className={overallDelta >= 0 ? "mb-2 bg-emerald-700" : "mb-2 bg-primary"}>
+                        {overallDelta >= 0 ? "+" : ""}
+                        {overallDelta} vs last
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-4 text-sm text-[#d7c9ba]">{ROLE_META[latest.role].name}</p>
+                  <p className="mt-1 text-xs text-[#a99b8d]">
+                    {new Date(latest.completedAt).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="py-0">
+                <CardContent className="p-5 sm:p-6">
+                  <div className="mb-6 flex items-center justify-between">
+                    <div>
+                      <h2 className="font-heading text-xl font-semibold">Score trend</h2>
+                      <p className="text-xs text-muted-foreground">Oldest to newest · last 8 sessions</p>
+                    </div>
+                    <TrendingUp className="text-primary" />
+                  </div>
+                  <div className="flex h-44 items-end gap-2">
+                    {trend.map((session, index) => (
+                      <div key={session.id} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+                        <p className="mb-1 text-center font-mono text-[10px] font-semibold">
+                          {session.overall}
+                        </p>
+                        <div
+                          className={cn(
+                            "min-h-2 rounded-t-md",
+                            index === trend.length - 1 ? "bg-primary" : "bg-primary/30",
+                          )}
+                          style={{ height: `${session.overall}%` }}
+                          title={`${ROLE_META[session.role].name}: ${session.overall}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
+              <section>
+                <h2 className="mb-3 font-heading text-xl font-semibold">Previous sessions</h2>
+                <div className="space-y-3">
+                  {sessions.map((session, index) => {
+                    const older = sessions[index + 1];
+                    const delta = older ? session.overall - older.overall : null;
+                    return (
+                      <Card key={session.id} className="py-0">
+                        <CardContent className="flex items-center gap-4 p-4 sm:p-5">
+                          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-secondary font-heading text-xl font-semibold text-primary">
+                            {session.overall}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-semibold">{ROLE_META[session.role].name}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {new Date(session.completedAt).toLocaleString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}{" "}
+                              · {session.answerCount} answers
+                            </p>
+                          </div>
+                          {delta !== null && (
+                            <span className={cn("text-sm font-semibold", delta >= 0 ? "text-emerald-700" : "text-primary")}>
+                              {delta >= 0 ? "+" : ""}
+                              {delta}
+                            </span>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <aside className="space-y-4">
+                <Card className="py-0">
+                  <CardContent className="p-5">
+                    <h2 className="font-heading text-xl font-semibold">Latest dimensions</h2>
+                    <div className="mt-5 space-y-4">
+                      {Object.entries(latest.dimensions).map(([key, value]) => {
+                        const prior = previous?.dimensions[key as keyof typeof latest.dimensions];
+                        const delta = prior === undefined ? null : value - prior;
+                        return (
+                          <div key={key}>
+                            <div className="mb-1.5 flex justify-between text-sm">
+                              <span>{DIMENSION_LABELS[key as keyof typeof DIMENSION_LABELS]}</span>
+                              <span className="font-semibold">
+                                {value}
+                                {delta !== null && (
+                                  <span className="ml-1 text-xs text-muted-foreground">
+                                    ({delta >= 0 ? "+" : ""}{delta})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <Progress value={value} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Delete all interview history stored in this browser?")) {
+                      onClear();
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-border p-3 text-sm font-semibold text-muted-foreground transition hover:border-destructive/30 hover:text-destructive"
+                >
+                  <Trash2 className="size-4" /> Delete local history
+                </button>
+              </aside>
+            </div>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
 
 function ReportScreen({
   report,
@@ -896,6 +1125,11 @@ export function GarudaApp() {
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [role, setRole] = useState<InterviewRole>("software-engineer");
   const [report, setReport] = useState<InterviewReport | null>(null);
+  const [sessions, setSessions] = useState<InterviewSession[]>([]);
+
+  useEffect(() => {
+    setSessions(readSessionHistory());
+  }, []);
 
   const startInterview = useCallback((candidate: CandidateProfile, selectedRole: InterviewRole) => {
     setProfile(candidate);
@@ -906,10 +1140,15 @@ export function GarudaApp() {
   }, []);
 
   const finishInterview = useCallback((answers: InterviewAnswer[]) => {
-    setReport(createReport(answers));
+    const nextReport = createReport(answers);
+    setReport(nextReport);
+    if (profile) {
+      const summary = createSessionSummary(nextReport, profile.name, role);
+      setSessions(saveSessionSummary(summary));
+    }
     setScreen("report");
     window.scrollTo(0, 0);
-  }, []);
+  }, [profile, role]);
 
   return (
     <AnimatePresence mode="wait">
@@ -920,7 +1159,13 @@ export function GarudaApp() {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {screen === "home" && <HomeScreen onStart={() => setScreen("setup")} />}
+        {screen === "home" && (
+          <HomeScreen
+            onStart={() => setScreen("setup")}
+            onHistory={() => setScreen("history")}
+            sessionCount={sessions.length}
+          />
+        )}
         {screen === "setup" && <SetupScreen onBack={() => setScreen("home")} onStart={startInterview} />}
         {screen === "interview" && profile && (
           <InterviewScreen
@@ -936,6 +1181,17 @@ export function GarudaApp() {
             role={role}
             report={report}
             onRestart={() => setScreen("setup")}
+          />
+        )}
+        {screen === "history" && (
+          <HistoryScreen
+            sessions={sessions}
+            onBack={() => setScreen("home")}
+            onStart={() => setScreen("setup")}
+            onClear={() => {
+              clearSessionHistory();
+              setSessions([]);
+            }}
           />
         )}
       </motion.div>

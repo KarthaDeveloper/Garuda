@@ -62,3 +62,15 @@ export type InterviewReport = {
   improvements: string[];
   answers: InterviewAnswer[];
 };
+
+export type InterviewSession = {
+  id: string;
+  completedAt: string;
+  role: InterviewRole;
+  candidateName: string;
+  overall: number;
+  dimensions: InterviewReport["dimensions"];
+  strengths: string[];
+  improvements: string[];
+  answerCount: number;
+};

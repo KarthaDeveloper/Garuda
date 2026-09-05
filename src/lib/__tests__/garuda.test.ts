@@ -6,6 +6,12 @@ import {
   nextBaseQuestion,
 } from "@/lib/interview-engine";
 import { extractCandidateProfile, SAMPLE_RESUME } from "@/lib/resume-parser";
+import {
+  clearSessionHistory,
+  createSessionSummary,
+  readSessionHistory,
+  saveSessionSummary,
+} from "@/lib/session-history";
 
 describe("resume extraction", () => {
   it("extracts candidate identity, skills, and evidence", () => {
@@ -81,5 +87,40 @@ describe("local scoring", () => {
     ]);
     expect(report.overall).toBe(strong.overall);
     expect(report.strengths.length).toBeGreaterThan(0);
+  });
+});
+
+describe("session history", () => {
+  it("persists report summaries without resume text or transcripts", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) || null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+    const question = {
+      id: "q1",
+      text: "Tell me about impact.",
+      competency: "Execution",
+      keywords: ["impact"],
+    };
+    const transcript = "I led the release and improved customer activation by 22%.";
+    const score = scoreAnswer(transcript, question, 30);
+    const report = createReport([
+      { question, transcript, durationSeconds: 30, pauses: 0, score },
+    ]);
+
+    saveSessionSummary(
+      createSessionSummary(report, "Maya Rao", "product-manager", new Date("2026-09-05T12:00:00Z")),
+      storage,
+    );
+
+    const history = readSessionHistory(storage);
+    expect(history).toHaveLength(1);
+    expect(history[0].overall).toBe(report.overall);
+    expect(history[0].role).toBe("product-manager");
+    expect(JSON.stringify(history)).not.toContain(transcript);
+    clearSessionHistory(storage);
+    expect(readSessionHistory(storage)).toEqual([]);
   });
 });
