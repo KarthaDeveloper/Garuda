@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Building2, LockKeyhole, UserRound } from "lucide-react";
+import { ArrowRight, Building2, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +26,10 @@ export function PersonaEntry({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       persona,
-      organization: persona === "admin" ? organization.trim() || "Garuda Demo Cohort" : undefined,
+      organization:
+        persona === "candidate"
+          ? undefined
+          : organization.trim() || (persona === "super-admin" ? "Garuda" : "Garuda Demo Cohort"),
     });
   }
 
@@ -53,16 +56,16 @@ export function PersonaEntry({
 
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">One product, two views</p>
+          <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">One product, governed access</p>
           <h1 className="mt-3 font-heading text-4xl font-semibold tracking-tight sm:text-5xl">
             How will you use Garuda?
           </h1>
           <p className="mt-4 text-base leading-7 text-muted-foreground">
-            Candidates own the interview. Placement and L&amp;D teams see cohort readiness.
+            Candidates practice, placement teams guide cohorts, and super admins govern access.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
           {([
             {
               id: "candidate" as const,
@@ -77,6 +80,13 @@ export function PersonaEntry({
               title: "Make readiness visible.",
               copy: "Track participation, compare readiness signals, and focus coaching on the candidates who need it.",
               icon: Building2,
+            },
+            {
+              id: "super-admin" as const,
+              label: "Super Admin",
+              title: "Govern accounts and roles.",
+              copy: "Manage candidate and admin access, account status, institutions, and platform oversight.",
+              icon: ShieldCheck,
             },
           ]).map((item) => {
             const Icon = item.icon;
@@ -123,7 +133,13 @@ export function PersonaEntry({
                     className="mt-2"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    placeholder={persona === "candidate" ? "Maya Rao" : "Anita Sharma"}
+                    placeholder={
+                      persona === "candidate"
+                        ? "Maya Rao"
+                        : persona === "admin"
+                          ? "Anita Sharma"
+                          : "Garuda Operations"
+                    }
                     autoComplete="name"
                   />
                 </label>
@@ -139,19 +155,24 @@ export function PersonaEntry({
                   />
                 </label>
               </div>
-              {persona === "admin" && (
+              {persona !== "candidate" && (
                 <label className="mt-4 block text-sm font-semibold">
                   Institution or cohort
                   <Input
                     className="mt-2"
                     value={organization}
                     onChange={(event) => setOrganization(event.target.value)}
-                    placeholder="Northstar Institute · 2026 cohort"
+                    placeholder={persona === "admin" ? "Northstar Institute · 2026 cohort" : "Garuda"}
                   />
                 </label>
               )}
               <Button className="mt-6 h-12 w-full text-base" disabled={!name.trim() || !email.includes("@")}>
-                Continue as {persona === "candidate" ? "candidate" : "admin"}
+                Continue as{" "}
+                {persona === "candidate"
+                  ? "candidate"
+                  : persona === "admin"
+                    ? "placement admin"
+                    : "super admin"}
                 <ArrowRight />
               </Button>
               <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">

@@ -33,6 +33,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { AdminDashboard } from "@/components/admin-dashboard";
+import { SuperAdminDashboard } from "@/components/super-admin-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -60,6 +61,7 @@ import {
   readSessionHistory,
   saveSessionSummary,
 } from "@/lib/session-history";
+import { hasCapability } from "@/lib/rbac";
 import type {
   CandidateProfile,
   InterviewAnswer,
@@ -1203,7 +1205,11 @@ export function GarudaApp() {
     );
   }
 
-  if (identity.persona === "admin") {
+  if (hasCapability(identity.persona, "accounts:manage")) {
+    return <SuperAdminDashboard identity={identity} onSignOut={signOut} />;
+  }
+
+  if (hasCapability(identity.persona, "cohort:view")) {
     return <AdminDashboard identity={identity} sessions={sessions} onSignOut={signOut} />;
   }
 

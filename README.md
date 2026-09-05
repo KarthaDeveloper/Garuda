@@ -5,9 +5,9 @@ practice. Upload a resume, choose Software Engineer, Product Manager, or Data
 Scientist, and complete an adaptive interview with local coaching and a scored
 report.
 
-The MVP is a mobile-first web application and installable PWA with two local
-demo personas: candidate and placement/L&D admin. It requires no API key or
-backend.
+The MVP is a mobile-first web application and installable PWA with three local
+demo roles: candidate, placement/L&D admin, and super admin. It requires no API
+key or backend.
 
 ## What works
 
@@ -23,6 +23,7 @@ backend.
 - Device-local session history, score trends, and dimension comparisons
 - Candidate and placement/L&D persona entry
 - Cohort dashboard with completion, readiness, trends, and attention flags
+- Central RBAC capability map and super-admin account/role console
 - Browser Prompt API adapter for on-device generation
 - Required deterministic fallback when the local model is unavailable
 - PWA manifest and offline shell cache
@@ -105,6 +106,8 @@ orchestrator and scoring modules remain shared.
 - The MVP persona login is a local browser identity, not production
   authentication. Cross-device institutional access requires verified,
   role-based authentication and shared storage.
+- Super-admin demo actions persist locally. A production implementation must
+  enforce role and account-status checks on the server and audit every change.
 - Refreshing or closing the tab clears the active interview.
 - Speech recognition support depends on the browser and may use its speech
   service. Typing and speech synthesis remain available without recognition.

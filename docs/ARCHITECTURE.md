@@ -22,6 +22,7 @@ with native speech and a quantized small language model.
 │                         TTS + STT + text fallback                  │
 │                                                                  │
 │  Admin view ◀──── local score summaries ──── Cohort readiness    │
+│  Super admin ◀─── RBAC capability map ───── Account directory    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -44,6 +45,9 @@ A service worker caches the shell for repeat/offline use.
   remains a first-class path on unsupported browsers.
 - React state owns the interview session. Refreshing intentionally clears it.
 - `local-identity.ts` stores the selected candidate/admin demo identity.
+- `rbac.ts` maps Candidate, Placement/L&D Admin, and Super Admin roles to
+  explicit capabilities used for top-level routing.
+- `account-directory.ts` persists the local demo account role/status directory.
 - `session-history.ts` stores transcript-free score summaries for candidate
   trends and the local admin cohort view.
 
@@ -83,6 +87,9 @@ portable TypeScript.
 - The persona entry is a local demo identity and is not an authorization boundary.
 - A production team rollout requires verified role-based authentication, tenant
   isolation, consent, retention controls, and shared encrypted storage.
+- Production authorization checks must run at every server/API boundary.
+  Super-admin role changes and suspensions require immutable audit records;
+  browser-provided roles must never be trusted.
 - Files are read with browser APIs and discarded when the tab closes.
 - Speech recognition availability varies by browser; Garuda states when the
   browser may provide recognition rather than claiming all STT is offline.
