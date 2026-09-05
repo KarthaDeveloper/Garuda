@@ -123,7 +123,7 @@ export function createQuestionSet(profile: CandidateProfile, role: InterviewRole
   }));
   const evidence = profile.experience[0] || profile.skills.slice(0, 2).join(" and ");
   if (evidence) {
-    const compact = evidence.replace(/\s+/g, " ").slice(0, 150);
+    const compact = evidence.replace(/\s+/g, " ").replace(/[.!?]+$/, "").slice(0, 150);
     questions[0] = {
       ...questions[0],
       text: `Your resume says, “${compact}”. What was the hardest part, what did you personally own, and what changed because of your work?`,
