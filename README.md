@@ -5,8 +5,9 @@ practice. Upload a resume, choose Software Engineer, Product Manager, or Data
 Scientist, and complete an adaptive interview with local coaching and a scored
 report.
 
-The MVP is a mobile-first web application and installable PWA. It requires no
-account, database, API key, or backend.
+The MVP is a mobile-first web application and installable PWA with two local
+demo personas: candidate and placement/L&D admin. It requires no API key or
+backend.
 
 ## What works
 
@@ -20,6 +21,8 @@ account, database, API key, or backend.
 - Explainable final score with strengths and next-practice actions
 - Printable and downloadable PDF report
 - Device-local session history, score trends, and dimension comparisons
+- Candidate and placement/L&D persona entry
+- Cohort dashboard with completion, readiness, trends, and attention flags
 - Browser Prompt API adapter for on-device generation
 - Required deterministic fallback when the local model is unavailable
 - PWA manifest and offline shell cache
@@ -99,6 +102,9 @@ orchestrator and scoring modules remain shared.
   They contain role, scores, strengths, and improvement prompts—not resume text
   or answer transcripts—and can be deleted from the Progress screen.
 - There is no application backend, telemetry SDK, account, or persistent DB.
+- The MVP persona login is a local browser identity, not production
+  authentication. Cross-device institutional access requires verified,
+  role-based authentication and shared storage.
 - Refreshing or closing the tab clears the active interview.
 - Speech recognition support depends on the browser and may use its speech
   service. Typing and speech synthesis remain available without recognition.
@@ -106,8 +112,9 @@ orchestrator and scoring modules remain shared.
 
 ## MVP boundaries
 
-Not included by design: account-based or cross-device history, video or
-body-language analysis, multilingual interviews, and roles beyond SWE / PM / DS.
+Not included by design: production authentication, account-based or cross-device
+history, video or body-language analysis, multilingual interviews, and roles
+beyond SWE / PM / DS.
 
 ## Deployment
 

@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { analyzeDelivery, createReport, scoreAnswer } from "@/lib/analytics";
 import {
+  canAskAdaptiveFollowUp,
   createAdaptiveFollowUp,
   createQuestionSet,
   nextBaseQuestion,
 } from "@/lib/interview-engine";
+import {
+  clearLocalIdentity,
+  readLocalIdentity,
+  saveLocalIdentity,
+} from "@/lib/local-identity";
 import { extractCandidateProfile, SAMPLE_RESUME } from "@/lib/resume-parser";
 import {
   clearSessionHistory,
@@ -54,6 +60,24 @@ describe("interview engine", () => {
       score: scoreAnswer("answer", questions[0], 30),
     };
     expect(nextBaseQuestion(questions, [first])?.id).toBe(questions[1].id);
+  });
+
+  it("caps adaptive probes and keeps their wording competency-specific", () => {
+    const questions = createQuestionSet(profile, "software-engineer");
+    const firstProbe = createAdaptiveFollowUp("A vague answer.", questions[0], 1);
+    const secondProbe = createAdaptiveFollowUp("Another vague answer.", questions[1], 2);
+    expect(firstProbe?.text).toContain(questions[0].competency.toLowerCase());
+    expect(secondProbe?.text).toContain(questions[1].competency.toLowerCase());
+    expect(firstProbe?.text).not.toBe(secondProbe?.text);
+
+    const probeAnswers = [firstProbe, secondProbe].map((question) => ({
+      question: question!,
+      transcript: "A more specific response.",
+      durationSeconds: 20,
+      pauses: 0,
+      score: scoreAnswer("A more specific response.", question!, 20),
+    }));
+    expect(canAskAdaptiveFollowUp(probeAnswers)).toBe(false);
   });
 });
 
@@ -122,5 +146,26 @@ describe("session history", () => {
     expect(JSON.stringify(history)).not.toContain(transcript);
     clearSessionHistory(storage);
     expect(readSessionHistory(storage)).toEqual([]);
+  });
+});
+
+describe("local persona identity", () => {
+  it("saves and clears candidate or admin identity locally", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) || null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+    const admin = {
+      name: "Anita Sharma",
+      email: "anita@northstar.edu",
+      persona: "admin" as const,
+      organization: "Northstar Institute",
+    };
+    saveLocalIdentity(admin, storage);
+    expect(readLocalIdentity(storage)).toEqual(admin);
+    clearLocalIdentity(storage);
+    expect(readLocalIdentity(storage)).toBeNull();
   });
 });

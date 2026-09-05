@@ -20,6 +20,7 @@ import {
   Laptop2,
   LoaderCircle,
   LockKeyhole,
+  LogOut,
   Mic,
   RotateCcw,
   Sparkles,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
+import { AdminDashboard } from "@/components/admin-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -38,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSpeech } from "@/hooks/use-speech";
 import { createReport, scoreAnswer } from "@/lib/analytics";
 import {
+  canAskAdaptiveFollowUp,
   createAdaptiveFollowUp,
   createQuestionSet,
   enhanceFollowUpLocally,
@@ -45,6 +48,12 @@ import {
   ROLE_META,
 } from "@/lib/interview-engine";
 import { loadSampleProfile, parseResume } from "@/lib/resume-parser";
+import {
+  clearLocalIdentity,
+  readLocalIdentity,
+  saveLocalIdentity,
+  type LocalIdentity,
+} from "@/lib/local-identity";
 import {
   clearSessionHistory,
   createSessionSummary,
@@ -60,6 +69,7 @@ import type {
   Question,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PersonaEntry } from "@/components/persona-entry";
 
 type Screen = "home" | "setup" | "interview" | "report" | "history";
 type ModelMode = "checking" | "on-device" | "fallback";
@@ -92,9 +102,13 @@ function GarudaLogo({ compact = false }: { compact?: boolean }) {
 function AppHeader({
   step,
   onBack,
+  userName,
+  onSignOut,
 }: {
   step?: string;
   onBack?: () => void;
+  userName?: string;
+  onSignOut?: () => void;
 }) {
   return (
     <header className="no-print sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
@@ -109,10 +123,16 @@ function AppHeader({
         </div>
         <div className="flex items-center gap-2">
           {step && <span className="hidden text-xs text-muted-foreground sm:block">{step}</span>}
+          {userName && <span className="hidden text-xs font-semibold sm:block">{userName}</span>}
           <Badge variant="outline" className="gap-1.5 border-emerald-700/20 bg-emerald-50 text-emerald-800">
             <LockKeyhole className="size-3" />
             Private by design
           </Badge>
+          {onSignOut && (
+            <Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Switch persona">
+              <LogOut />
+            </Button>
+          )}
         </div>
       </div>
     </header>
@@ -123,14 +143,18 @@ function HomeScreen({
   onStart,
   onHistory,
   sessionCount,
+  identity,
+  onSignOut,
 }: {
   onStart: () => void;
   onHistory: () => void;
   sessionCount: number;
+  identity: LocalIdentity;
+  onSignOut: () => void;
 }) {
   return (
     <main className="paper-grid min-h-svh">
-      <AppHeader />
+      <AppHeader userName={identity.name} onSignOut={onSignOut} />
       <section className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-6xl items-center gap-12 px-5 py-12 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
           <Badge className="mb-6 gap-2 rounded-full px-3 py-1.5">
@@ -503,7 +527,7 @@ function InterviewScreen({
         answer.question.id.startsWith(question.id.split("-follow-")[0] + "-follow-"),
       ).length;
       const fallback =
-        !question.isFollowUp && followUpsForCurrent < 1
+        !question.isFollowUp && followUpsForCurrent < 1 && canAskAdaptiveFollowUp(allAnswers)
           ? createAdaptiveFollowUp(submitted.transcript, question, allAnswers.length)
           : null;
       if (fallback) {
@@ -1122,14 +1146,26 @@ function ReportScreen({
 
 export function GarudaApp() {
   const [screen, setScreen] = useState<Screen>("home");
+  const [identity, setIdentity] = useState<LocalIdentity | null>(null);
+  const [identityReady, setIdentityReady] = useState(false);
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [role, setRole] = useState<InterviewRole>("software-engineer");
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setSessions(readSessionHistory()));
+    const frame = window.requestAnimationFrame(() => {
+      setIdentity(readLocalIdentity());
+      setSessions(readSessionHistory());
+      setIdentityReady(true);
+    });
     return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const signOut = useCallback(() => {
+    clearLocalIdentity();
+    setIdentity(null);
+    setScreen("home");
   }, []);
 
   const startInterview = useCallback((candidate: CandidateProfile, selectedRole: InterviewRole) => {
@@ -1151,6 +1187,26 @@ export function GarudaApp() {
     window.scrollTo(0, 0);
   }, [profile, role]);
 
+  if (!identityReady) {
+    return <main className="min-h-svh bg-background" aria-busy="true" />;
+  }
+
+  if (!identity) {
+    return (
+      <PersonaEntry
+        onLogin={(nextIdentity) => {
+          saveLocalIdentity(nextIdentity);
+          setIdentity(nextIdentity);
+          setScreen("home");
+        }}
+      />
+    );
+  }
+
+  if (identity.persona === "admin") {
+    return <AdminDashboard identity={identity} sessions={sessions} onSignOut={signOut} />;
+  }
+
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -1165,6 +1221,8 @@ export function GarudaApp() {
             onStart={() => setScreen("setup")}
             onHistory={() => setScreen("history")}
             sessionCount={sessions.length}
+            identity={identity}
+            onSignOut={signOut}
           />
         )}
         {screen === "setup" && <SetupScreen onBack={() => setScreen("home")} onStart={startInterview} />}

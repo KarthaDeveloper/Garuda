@@ -9,9 +9,9 @@ with native speech and a quantized small language model.
 ```text
 ┌──────────────────────── Mobile-first PWA ────────────────────────┐
 │                                                                  │
-│  Resume intake          Interview session        Feedback         │
-│  PDF / DOCX / TXT ───▶  Orchestrator ─────────▶ Scoring          │
-│  local extraction       question + answer        Delivery metrics │
+│  Candidate view         Interview session        Feedback         │
+│  Resume intake ───────▶ Orchestrator ─────────▶ Scoring          │
+│  PDF / DOCX / TXT       question + answer        Delivery metrics │
 │          │                    │                         │          │
 │          ▼                    ▼                         ▼          │
 │  Candidate context      Inference adapter         Printable report │
@@ -20,12 +20,15 @@ with native speech and a quantized small language model.
 │                                  │                                 │
 │                         Speech adapter                             │
 │                         TTS + STT + text fallback                  │
+│                                                                  │
+│  Admin view ◀──── local score summaries ──── Cohort readiness    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 There is no application server in the MVP. Static assets are hosted, but resume
-text, transcripts, audio-derived metrics, and reports stay in page memory. A
-service worker caches the shell for repeat/offline use.
+text, transcripts, and audio-derived metrics stay in page memory. Completed
+score summaries and the selected demo persona are stored in browser localStorage.
+A service worker caches the shell for repeat/offline use.
 
 ## Domain modules
 
@@ -40,6 +43,9 @@ service worker caches the shell for repeat/offline use.
 - `speech/use-speech.ts` wraps Web Speech recognition and synthesis. Text entry
   remains a first-class path on unsupported browsers.
 - React state owns the interview session. Refreshing intentionally clears it.
+- `local-identity.ts` stores the selected candidate/admin demo identity.
+- `session-history.ts` stores transcript-free score summaries for candidate
+  trends and the local admin cohort view.
 
 ## Interview sequence
 
@@ -51,7 +57,7 @@ Opening question (resume evidence)
   │ answer / transcript
   ▼
 Local analysis
-  ├─ vague / no example ──▶ probing follow-up
+  ├─ vague / no example ──▶ probing follow-up (maximum two per session)
   ├─ no measurable result ▶ impact follow-up
   └─ sufficient evidence ─▶ next competency
   ▼
@@ -73,7 +79,10 @@ portable TypeScript.
 
 ## Privacy and security boundaries
 
-- No accounts, analytics SDK, database, or server-side resume endpoint.
+- No production accounts, analytics SDK, database, or server-side resume endpoint.
+- The persona entry is a local demo identity and is not an authorization boundary.
+- A production team rollout requires verified role-based authentication, tenant
+  isolation, consent, retention controls, and shared encrypted storage.
 - Files are read with browser APIs and discarded when the tab closes.
 - Speech recognition availability varies by browser; Garuda states when the
   browser may provide recognition rather than claiming all STT is offline.
