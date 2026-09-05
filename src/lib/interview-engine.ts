@@ -192,30 +192,45 @@ export async function enhanceFollowUpLocally(
 ): Promise<{ question: Question; model: "on-device" | "fallback" }> {
   const api = window.LanguageModel || window.ai?.languageModel;
   if (!api) return { question: fallback, model: "fallback" };
-  try {
-    const availability = await api.availability?.();
-    if (availability === "unavailable" || availability === "no") {
-      return { question: fallback, model: "fallback" };
+  const fallbackResult = { question: fallback, model: "fallback" as const };
+  const enhancement = async () => {
+    let session: LanguageModelSession | undefined;
+    try {
+      const availability = await api.availability?.();
+      if (
+        availability &&
+        !["available", "readily"].includes(availability)
+      ) {
+        return fallbackResult;
+      }
+      session = await api.create({
+        systemPrompt:
+          "You are a concise mock interviewer. Return one probing follow-up question only. Never evaluate or praise.",
+      });
+      const text = await session.prompt(
+        `Role: ${ROLE_META[role].name}\nCandidate answer: ${answer.slice(0, 1500)}\nRequired probe: ${fallback.text}`,
+      );
+      const clean = text.trim().replace(/^["']|["']$/g, "").slice(0, 260);
+      if (clean.length > 15) {
+        return {
+          question: { ...fallback, text: clean, source: "On-device model" },
+          model: "on-device" as const,
+        };
+      }
+    } catch {
+      // Required fallback keeps the interview available when the local model fails.
+    } finally {
+      session?.destroy?.();
     }
-    const session = await api.create({
-      systemPrompt:
-        "You are a concise mock interviewer. Return one probing follow-up question only. Never evaluate or praise.",
-    });
-    const text = await session.prompt(
-      `Role: ${ROLE_META[role].name}\nCandidate answer: ${answer.slice(0, 1500)}\nRequired probe: ${fallback.text}`,
-    );
-    session.destroy?.();
-    const clean = text.trim().replace(/^["']|["']$/g, "").slice(0, 260);
-    if (clean.length > 15) {
-      return {
-        question: { ...fallback, text: clean, source: "On-device model" },
-        model: "on-device",
-      };
-    }
-  } catch {
-    // Required fallback keeps the interview available when the local model fails.
-  }
-  return { question: fallback, model: "fallback" };
+    return fallbackResult;
+  };
+
+  return Promise.race([
+    enhancement(),
+    new Promise<typeof fallbackResult>((resolve) => {
+      window.setTimeout(() => resolve(fallbackResult), 2200);
+    }),
+  ]);
 }
 
 export function nextBaseQuestion(questions: Question[], answers: InterviewAnswer[]) {
