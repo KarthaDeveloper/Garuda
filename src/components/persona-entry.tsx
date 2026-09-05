@@ -226,6 +226,7 @@ export function PersonaEntry({
               )}
               {message && <p className="mt-4 text-sm leading-6 text-primary">{message}</p>}
               <Button
+                type="submit"
                 className="mt-6 h-12 w-full text-base"
                 disabled={
                   loading ||
