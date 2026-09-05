@@ -490,7 +490,11 @@ function InterviewScreen({
   }
 
   const coreAnswered = answers.filter((answer) => !answer.question.isFollowUp).length;
-  const progress = Math.min(100, ((coreAnswered + (submitted && !question.isFollowUp ? 1 : 0)) / questions.length) * 100);
+  const currentBaseIndex = Math.max(
+    0,
+    questions.findIndex((item) => question.id === item.id || question.id.startsWith(`${item.id}-follow-`)),
+  );
+  const progress = Math.min(100, (coreAnswered / questions.length) * 100);
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
   return (
@@ -500,7 +504,7 @@ function InterviewScreen({
         <div className="mb-6 flex items-center gap-4">
           <div className="flex-1">
             <div className="mb-2 flex justify-between text-xs">
-              <span className="font-semibold">Question {Math.min(coreAnswered + 1, 5)} of 5</span>
+              <span className="font-semibold">Question {currentBaseIndex + 1} of 5</span>
               <span className="text-muted-foreground">{Math.round(progress)}% complete</span>
             </div>
             <Progress value={progress} />
