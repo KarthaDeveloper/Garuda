@@ -6,6 +6,7 @@ import {
   BarChart3,
   Building2,
   Clock3,
+  LoaderCircle,
   LockKeyhole,
   Mic,
   ShieldCheck,
@@ -16,7 +17,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { LocalIdentity } from "@/lib/local-identity";
+import {
+  isCloudAuthConfigured,
+  registerCandidate,
+  signInWithPassword,
+} from "@/lib/auth-service";
+import { createDemoIdentity, type LocalIdentity } from "@/lib/local-identity";
+import { hasCapability } from "@/lib/rbac";
 
 export function PersonaEntry({
   onLogin,
@@ -27,16 +34,48 @@ export function PersonaEntry({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [organization, setOrganization] = useState("");
+  const [password, setPassword] = useState("");
+  const [authAction, setAuthAction] = useState<"sign-in" | "create">("create");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!name.trim() || !email.includes("@")) return;
-    onLogin({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      persona: mode,
-      organization: mode === "admin" ? organization.trim() || "Garuda Demo Cohort" : undefined,
-    });
+    if ((!name.trim() && authAction === "create") || !email.includes("@")) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      if (!isCloudAuthConfigured) {
+        onLogin(createDemoIdentity({
+          name: name.trim() || email.split("@")[0],
+          email: email.trim().toLowerCase(),
+          persona: mode,
+          organization: mode === "admin" ? organization.trim() || "Garuda Demo Cohort" : undefined,
+        }));
+        return;
+      }
+
+      if (mode === "candidate" && authAction === "create") {
+        const result = await registerCandidate({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+        });
+        if (result.identity) onLogin(result.identity);
+        else setMessage("Check your email to confirm the account, then sign in.");
+        return;
+      }
+
+      const identity = await signInWithPassword(email.trim().toLowerCase(), password);
+      if (mode === "admin" && !hasCapability(identity.persona, "cohort:view")) {
+        throw new Error("This account does not have Placement/L&D access.");
+      }
+      onLogin(identity);
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Account access failed.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function selectMode(nextMode: typeof mode) {
@@ -44,6 +83,9 @@ export function PersonaEntry({
     setName("");
     setEmail("");
     setOrganization("");
+    setPassword("");
+    setAuthAction(nextMode === "candidate" ? "create" : "sign-in");
+    setMessage(null);
     if (nextMode === "admin") {
       window.setTimeout(() => document.getElementById("account-entry")?.scrollIntoView({ behavior: "smooth" }), 0);
     }
@@ -118,16 +160,35 @@ export function PersonaEntry({
             </div>
 
             <form className="mt-6" onSubmit={submit}>
-              <label className="text-sm font-semibold">
-                Your name
-                <Input
-                  className="mt-2"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={mode === "candidate" ? "Maya Rao" : "Anita Sharma"}
-                  autoComplete="name"
-                />
-              </label>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <Badge variant="outline">
+                  {isCloudAuthConfigured ? "Secure cloud account" : "Local demo mode"}
+                </Badge>
+                {mode === "candidate" && isCloudAuthConfigured && (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-primary hover:underline"
+                    onClick={() => {
+                      setAuthAction((current) => current === "create" ? "sign-in" : "create");
+                      setMessage(null);
+                    }}
+                  >
+                    {authAction === "create" ? "Already have an account?" : "Create an account"}
+                  </button>
+                )}
+              </div>
+              {(authAction === "create" || !isCloudAuthConfigured) && (
+                <label className="text-sm font-semibold">
+                  Your name
+                  <Input
+                    className="mt-2"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder={mode === "candidate" ? "Maya Rao" : "Anita Sharma"}
+                    autoComplete="name"
+                  />
+                </label>
+              )}
               <label className="mt-4 block text-sm font-semibold">
                 {mode === "candidate" ? "Email" : "Work email"}
                 <Input
@@ -139,7 +200,20 @@ export function PersonaEntry({
                   autoComplete="email"
                 />
               </label>
-              {mode === "admin" && (
+              {isCloudAuthConfigured && (
+                <label className="mt-4 block text-sm font-semibold">
+                  Password
+                  <Input
+                    className="mt-2"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    type="password"
+                    minLength={8}
+                    autoComplete={authAction === "create" ? "new-password" : "current-password"}
+                  />
+                </label>
+              )}
+              {mode === "admin" && !isCloudAuthConfigured && (
                 <label className="mt-4 block text-sm font-semibold">
                   Institution or cohort
                   <Input
@@ -150,10 +224,31 @@ export function PersonaEntry({
                   />
                 </label>
               )}
-              <Button className="mt-6 h-12 w-full text-base" disabled={!name.trim() || !email.includes("@")}>
-                {mode === "candidate" ? "Start as a candidate" : "Continue to cohort"}
-                <ArrowRight />
+              {message && <p className="mt-4 text-sm leading-6 text-primary">{message}</p>}
+              <Button
+                className="mt-6 h-12 w-full text-base"
+                disabled={
+                  loading ||
+                  (!name.trim() && (authAction === "create" || !isCloudAuthConfigured)) ||
+                  !email.includes("@") ||
+                  (isCloudAuthConfigured && password.length < 8)
+                }
+              >
+                {loading ? <LoaderCircle className="animate-spin" /> : null}
+                {!isCloudAuthConfigured
+                  ? "Continue in local demo"
+                  : mode === "candidate"
+                    ? authAction === "create"
+                      ? "Create secure account"
+                      : "Sign in as candidate"
+                    : "Sign in to cohort"}
+                {!loading && <ArrowRight />}
               </Button>
+              {!isCloudAuthConfigured && (
+                <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">
+                  Add Supabase environment variables to enable secure accounts and cross-device sync.
+                </p>
+              )}
               {mode === "admin" && (
                 <button
                   type="button"

@@ -3,9 +3,11 @@ import type { UserRole } from "@/lib/rbac";
 export type UserPersona = UserRole;
 
 export type LocalIdentity = {
+  accountId: string;
   name: string;
   email: string;
   persona: UserPersona;
+  authMode: "cloud" | "demo";
   organization?: string;
 };
 
@@ -29,10 +31,29 @@ export function readLocalIdentity(storage = browserStorage()): LocalIdentity | n
     ) {
       return null;
     }
-    return value as LocalIdentity;
+    const identity = {
+      ...value,
+      accountId:
+        typeof value.accountId === "string"
+          ? value.accountId
+          : globalThis.crypto?.randomUUID?.() || `local-${Date.now()}`,
+      authMode: value.authMode === "cloud" ? "cloud" as const : "demo" as const,
+    } as LocalIdentity;
+    storage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(identity));
+    return identity;
   } catch {
     return null;
   }
+}
+
+export function createDemoIdentity(
+  identity: Omit<LocalIdentity, "accountId" | "authMode">,
+): LocalIdentity {
+  return {
+    ...identity,
+    accountId: globalThis.crypto?.randomUUID?.() || `local-${Date.now()}`,
+    authMode: "demo",
+  };
 }
 
 export function saveLocalIdentity(identity: LocalIdentity, storage = browserStorage()) {
