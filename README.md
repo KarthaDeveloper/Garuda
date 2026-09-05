@@ -25,6 +25,8 @@ key or backend.
 - Cohort dashboard with completion, readiness, trends, and attention flags
 - Central RBAC capability map and super-admin account/role console
 - Candidate-first public home with concrete interview and privacy data points
+- Optional secure Supabase email accounts with immutable account UUIDs
+- Cross-device transcript-free session summary sync protected by row-level security
 - Browser Prompt API adapter for on-device generation
 - Required deterministic fallback when the local model is unavailable
 - PWA manifest and offline shell cache
@@ -46,6 +48,21 @@ Production:
 npm run build
 npm start
 ```
+
+### Enable secure accounts and cross-device sync
+
+Create a Supabase project, copy `.env.example` to `.env.local`, and set the
+project URL and publishable key. Then apply
+`supabase/migrations/20260905195500_accounts_and_sessions.sql` in the Supabase
+SQL editor or CLI.
+
+Supabase Auth's `auth.users.id` UUID is the canonical Garuda account ID. The
+database policies only allow an authenticated user to read and write session
+summaries whose `user_id` matches that UUID. Resume text and answer transcripts
+are never synchronized.
+
+Without these environment variables, the app clearly runs in local demo mode;
+that mode is not secure authentication and cannot sync across devices.
 
 ## Quality checks
 
@@ -105,8 +122,9 @@ orchestrator and scoring modules remain shared.
   or answer transcripts—and can be deleted from the Progress screen.
 - There is no application backend, telemetry SDK, account, or persistent DB.
 - The MVP persona login is a local browser identity, not production
-  authentication. Cross-device institutional access requires verified,
-  role-based authentication and shared storage.
+  authentication when Supabase is not configured.
+- With Supabase configured, account sessions are managed by Supabase Auth and
+  cross-device summaries are owned by the authenticated account UUID.
 - Super-admin demo actions persist locally. A production implementation must
   enforce role and account-status checks on the server and audit every change.
 - Super Admin is intentionally absent from public login. Privileged identities

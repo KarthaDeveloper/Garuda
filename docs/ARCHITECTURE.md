@@ -23,13 +23,16 @@ with native speech and a quantized small language model.
 │                                                                  │
 │  Admin view ◀──── local score summaries ──── Cohort readiness    │
 │  Super admin ◀─── RBAC capability map ───── Account directory    │
+│                                                                  │
+│  Supabase Auth UUID ── RLS ──▶ transcript-free session summaries │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-There is no application server in the MVP. Static assets are hosted, but resume
-text, transcripts, and audio-derived metrics stay in page memory. Completed
-score summaries and the selected demo persona are stored in browser localStorage.
-A service worker caches the shell for repeat/offline use.
+Static assets are hosted, but resume text, transcripts, and audio-derived
+metrics stay in page memory. When Supabase is configured, its Auth user UUID is
+the canonical account ID and transcript-free score summaries synchronize under
+row-level security. Local demo mode stores summaries and identity in browser
+localStorage. A service worker caches the shell for repeat/offline use.
 
 ## Domain modules
 
@@ -49,6 +52,11 @@ A service worker caches the shell for repeat/offline use.
   explicit capabilities used for top-level routing. Only Candidate and
   Placement/L&D Admin are public entry options.
 - `account-directory.ts` persists the local demo account role/status directory.
+- `auth-service.ts` adapts Supabase email/password auth into a trusted Garuda
+  identity. Roles come from protected `app_metadata`, never editable
+  `user_metadata`.
+- `session-sync.ts` merges local and remote summaries and writes only rows owned
+  by the authenticated account UUID.
 - `session-history.ts` stores transcript-free score summaries for candidate
   trends and the local admin cohort view.
 
@@ -86,8 +94,9 @@ portable TypeScript.
 
 - No production accounts, analytics SDK, database, or server-side resume endpoint.
 - The persona entry is a local demo identity and is not an authorization boundary.
-- A production team rollout requires verified role-based authentication, tenant
-  isolation, consent, retention controls, and shared encrypted storage.
+- A production team rollout uses Supabase Auth and RLS for identity and
+  per-candidate summary ownership; institutional cohort access additionally
+  requires tenant policies, consent, retention controls, and audit logging.
 - Production authorization checks must run at every server/API boundary.
   Super-admin role changes and suspensions require immutable audit records;
   browser-provided roles must never be trusted.

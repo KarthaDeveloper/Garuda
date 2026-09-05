@@ -20,6 +20,7 @@ import {
   readSessionHistory,
   saveSessionSummary,
 } from "@/lib/session-history";
+import { mergeSessionSummaries } from "@/lib/session-sync";
 
 describe("resume extraction", () => {
   it("extracts candidate identity, skills, and evidence", () => {
@@ -160,15 +161,48 @@ describe("local persona identity", () => {
       removeItem: (key: string) => values.delete(key),
     };
     const admin = {
+      accountId: "89b893c5-43fb-4e6f-b7d3-e9a2fb66cdb8",
       name: "Anita Sharma",
       email: "anita@northstar.edu",
       persona: "admin" as const,
+      authMode: "demo" as const,
       organization: "Northstar Institute",
     };
     saveLocalIdentity(admin, storage);
     expect(readLocalIdentity(storage)).toEqual(admin);
     clearLocalIdentity(storage);
     expect(readLocalIdentity(storage)).toBeNull();
+  });
+});
+
+describe("cross-device session synchronization", () => {
+  it("merges remote and local summaries by stable session ID", () => {
+    const base = {
+      id: "d616e1dc-82bf-4abf-bd20-c88d641e3299",
+      completedAt: "2026-09-05T12:00:00Z",
+      role: "software-engineer" as const,
+      candidateName: "Maya Rao",
+      overall: 74,
+      dimensions: {
+        relevance: 70,
+        structure: 72,
+        specificity: 74,
+        communication: 76,
+        competency: 78,
+      },
+      strengths: ["Clear ownership"],
+      improvements: ["Add metrics"],
+      answerCount: 7,
+    };
+    const newer = {
+      ...base,
+      id: "27aa6758-46bb-44a8-a070-16573ecc595d",
+      completedAt: "2026-09-06T12:00:00Z",
+      overall: 81,
+    };
+    const merged = mergeSessionSummaries([base], [base, newer]);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].id).toBe(newer.id);
   });
 });
 

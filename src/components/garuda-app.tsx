@@ -41,6 +41,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSpeech } from "@/hooks/use-speech";
 import { createReport, scoreAnswer } from "@/lib/analytics";
 import {
+  getAuthenticatedIdentity,
+  isCloudAuthConfigured,
+  signOutCloudAccount,
+} from "@/lib/auth-service";
+import {
   canAskAdaptiveFollowUp,
   createAdaptiveFollowUp,
   createQuestionSet,
@@ -61,6 +66,12 @@ import {
   readSessionHistory,
   saveSessionSummary,
 } from "@/lib/session-history";
+import {
+  deleteRemoteSessions,
+  fetchRemoteSessions,
+  mergeSessionSummaries,
+  syncSessionSummary,
+} from "@/lib/session-sync";
 import { hasCapability } from "@/lib/rbac";
 import type {
   CandidateProfile,
@@ -156,7 +167,10 @@ function HomeScreen({
 }) {
   return (
     <main className="paper-grid min-h-svh">
-      <AppHeader userName={identity.name} onSignOut={onSignOut} />
+      <AppHeader
+        userName={`${identity.name} · ${identity.accountId.slice(0, 8)}`}
+        onSignOut={onSignOut}
+      />
       <section className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-6xl items-center gap-12 px-5 py-12 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
           <Badge className="mb-6 gap-2 rounded-full px-3 py-1.5">
@@ -1157,14 +1171,27 @@ export function GarudaApp() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setIdentity(readLocalIdentity());
-      setSessions(readSessionHistory());
-      setIdentityReady(true);
+      void (async () => {
+        const localIdentity = readLocalIdentity();
+        const authenticatedIdentity = await getAuthenticatedIdentity().catch(() => null);
+        const resolvedIdentity = isCloudAuthConfigured ? authenticatedIdentity : localIdentity;
+        const localSessions = readSessionHistory();
+        if (authenticatedIdentity) {
+          saveLocalIdentity(authenticatedIdentity);
+          const remoteSessions = await fetchRemoteSessions(authenticatedIdentity.accountId).catch(() => []);
+          setSessions(mergeSessionSummaries(localSessions, remoteSessions));
+        } else {
+          setSessions(localSessions);
+        }
+        setIdentity(resolvedIdentity);
+        setIdentityReady(true);
+      })();
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const signOut = useCallback(() => {
+    void signOutCloudAccount();
     clearLocalIdentity();
     setIdentity(null);
     setScreen("home");
@@ -1184,15 +1211,19 @@ export function GarudaApp() {
     if (profile) {
       const summary = createSessionSummary(nextReport, profile.name, role);
       setSessions(saveSessionSummary(summary));
+      if (identity?.authMode === "cloud") {
+        void syncSessionSummary(identity.accountId, summary);
+      }
     }
     setScreen("report");
     window.scrollTo(0, 0);
-  }, [profile, role]);
+  }, [identity, profile, role]);
 
   if (!identityReady) {
     return (
       <main
         className="paper-grid grid min-h-svh place-items-center bg-background px-6"
+        suppressHydrationWarning
         aria-busy="true"
         aria-label="Loading Garuda"
       >
@@ -1270,6 +1301,9 @@ export function GarudaApp() {
             onClear={() => {
               clearSessionHistory();
               setSessions([]);
+              if (identity.authMode === "cloud") {
+                void deleteRemoteSessions(identity.accountId);
+              }
             }}
           />
         )}
