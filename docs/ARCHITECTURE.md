@@ -46,7 +46,8 @@ A service worker caches the shell for repeat/offline use.
 - React state owns the interview session. Refreshing intentionally clears it.
 - `local-identity.ts` stores the selected candidate/admin demo identity.
 - `rbac.ts` maps Candidate, Placement/L&D Admin, and Super Admin roles to
-  explicit capabilities used for top-level routing.
+  explicit capabilities used for top-level routing. Only Candidate and
+  Placement/L&D Admin are public entry options.
 - `account-directory.ts` persists the local demo account role/status directory.
 - `session-history.ts` stores transcript-free score summaries for candidate
   trends and the local admin cohort view.
@@ -90,6 +91,8 @@ portable TypeScript.
 - Production authorization checks must run at every server/API boundary.
   Super-admin role changes and suspensions require immutable audit records;
   browser-provided roles must never be trusted.
+- Super Admin is never self-selectable. Hiding a control is not authorization;
+  the production identity provider/backend must provision and assert this role.
 - Files are read with browser APIs and discarded when the tab closes.
 - Speech recognition availability varies by browser; Garuda states when the
   browser may provide recognition rather than claiming all STT is offline.

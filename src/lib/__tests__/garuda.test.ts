@@ -12,7 +12,7 @@ import {
   saveLocalIdentity,
 } from "@/lib/local-identity";
 import { DEMO_ACCOUNTS, readAccountDirectory, saveAccountDirectory } from "@/lib/account-directory";
-import { capabilitiesFor, hasCapability } from "@/lib/rbac";
+import { capabilitiesFor, hasCapability, PUBLIC_LOGIN_ROLES } from "@/lib/rbac";
 import { extractCandidateProfile, SAMPLE_RESUME } from "@/lib/resume-parser";
 import {
   clearSessionHistory,
@@ -180,6 +180,8 @@ describe("role-based access control", () => {
     expect(hasCapability("admin", "accounts:manage")).toBe(false);
     expect(hasCapability("super-admin", "accounts:manage")).toBe(true);
     expect(capabilitiesFor("super-admin")).toContain("roles:assign");
+    expect(PUBLIC_LOGIN_ROLES).toEqual(["candidate", "admin"]);
+    expect(PUBLIC_LOGIN_ROLES).not.toContain("super-admin");
   });
 
   it("persists super-admin role and status changes in the demo directory", () => {

@@ -14,6 +14,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   "super-admin": "Super Admin",
 };
 
+export const PUBLIC_LOGIN_ROLES = ["candidate", "admin"] as const satisfies readonly UserRole[];
+
 const ROLE_CAPABILITIES: Record<UserRole, readonly Capability[]> = {
   candidate: ["practice:interview", "progress:view-own"],
   admin: ["cohort:view", "cohort:manage"],
