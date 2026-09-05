@@ -1,4 +1,6 @@
-export type UserPersona = "candidate" | "admin";
+import type { UserRole } from "@/lib/rbac";
+
+export type UserPersona = UserRole;
 
 export type LocalIdentity = {
   name: string;
@@ -23,7 +25,7 @@ export function readLocalIdentity(storage = browserStorage()): LocalIdentity | n
       !value ||
       typeof value.name !== "string" ||
       typeof value.email !== "string" ||
-      !["candidate", "admin"].includes(value.persona || "")
+      !["candidate", "admin", "super-admin"].includes(value.persona || "")
     ) {
       return null;
     }

@@ -11,6 +11,8 @@ import {
   readLocalIdentity,
   saveLocalIdentity,
 } from "@/lib/local-identity";
+import { DEMO_ACCOUNTS, readAccountDirectory, saveAccountDirectory } from "@/lib/account-directory";
+import { capabilitiesFor, hasCapability } from "@/lib/rbac";
 import { extractCandidateProfile, SAMPLE_RESUME } from "@/lib/resume-parser";
 import {
   clearSessionHistory,
@@ -167,5 +169,32 @@ describe("local persona identity", () => {
     expect(readLocalIdentity(storage)).toEqual(admin);
     clearLocalIdentity(storage);
     expect(readLocalIdentity(storage)).toBeNull();
+  });
+});
+
+describe("role-based access control", () => {
+  it("keeps candidate, admin, and super-admin capabilities separate", () => {
+    expect(hasCapability("candidate", "practice:interview")).toBe(true);
+    expect(hasCapability("candidate", "cohort:view")).toBe(false);
+    expect(hasCapability("admin", "cohort:manage")).toBe(true);
+    expect(hasCapability("admin", "accounts:manage")).toBe(false);
+    expect(hasCapability("super-admin", "accounts:manage")).toBe(true);
+    expect(capabilitiesFor("super-admin")).toContain("roles:assign");
+  });
+
+  it("persists super-admin role and status changes in the demo directory", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) || null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    const changed = DEMO_ACCOUNTS.map((account) =>
+      account.id === "acct-1" ? { ...account, role: "admin" as const, status: "suspended" as const } : account,
+    );
+    saveAccountDirectory(changed, storage);
+    expect(readAccountDirectory(storage).find(({ id }) => id === "acct-1")).toMatchObject({
+      role: "admin",
+      status: "suspended",
+    });
   });
 });
