@@ -1128,7 +1128,8 @@ export function GarudaApp() {
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
 
   useEffect(() => {
-    setSessions(readSessionHistory());
+    const frame = window.requestAnimationFrame(() => setSessions(readSessionHistory()));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const startInterview = useCallback((candidate: CandidateProfile, selectedRole: InterviewRole) => {
