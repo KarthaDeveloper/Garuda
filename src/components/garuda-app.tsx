@@ -1190,7 +1190,21 @@ export function GarudaApp() {
   }, [profile, role]);
 
   if (!identityReady) {
-    return <main className="min-h-svh bg-background" aria-busy="true" />;
+    return (
+      <main
+        className="paper-grid grid min-h-svh place-items-center bg-background px-6"
+        aria-busy="true"
+        aria-label="Loading Garuda"
+      >
+        <div className="text-center">
+          <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
+            <span className="font-heading text-2xl font-bold">G</span>
+          </div>
+          <p className="mt-4 font-heading text-xl font-semibold">Opening Garuda…</p>
+          <p className="mt-1 text-sm text-muted-foreground">Loading your private workspace</p>
+        </div>
+      </main>
+    );
   }
 
   if (!identity) {
